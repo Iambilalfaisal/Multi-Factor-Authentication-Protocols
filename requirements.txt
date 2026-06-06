@@ -1,5 +1,6 @@
 # ---------------------------------------------------------------------------
 # MFA Authentication Server - dependencies
+# Build marker (bump to force a full Streamlit Cloud rebuild): 2026-06-06.1
 # ---------------------------------------------------------------------------
 # Backend / API
 Flask==3.0.3

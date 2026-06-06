@@ -205,13 +205,20 @@ def _style_fig(fig):
     return fig
 
 
+# Bump this whenever the data layer's shape changes (new methods, etc.). It is
+# part of the cache key below, so a new value forces Streamlit to rebuild the
+# cached resources on the next run instead of reusing a stale object that an
+# earlier build cached (a known Streamlit Cloud hot-reload pitfall).
+_BUILD = "2026-06-06.delete-user"
+
+
 @st.cache_resource
-def _ds():
+def _ds(build: str = _BUILD):
     return get_data_source()
 
 
 @st.cache_resource
-def _ensure_seed_data():
+def _ensure_seed_data(build: str = _BUILD):
     """Auto-seed demo login history on first boot when there are no events.
 
     Streamlit Community Cloud has no terminal and an ephemeral filesystem, so
@@ -507,6 +514,12 @@ _PAGE_SUBTITLES = {
 def main():
     _inject_theme()
     ds = _ds()
+    # Self-heal: if a previous build cached a DataSource that predates a method
+    # we now rely on, drop the stale object and rebuild it. Guards against the
+    # "object has no attribute ..." error after a hot-reload deploy.
+    if not hasattr(ds, "delete_user"):
+        st.cache_resource.clear()
+        ds = _ds()
     seed_status = _ensure_seed_data()
     st.sidebar.title("🔐 MFA Admin")
     # Data initialisation is silent by design so the console reads like a live
