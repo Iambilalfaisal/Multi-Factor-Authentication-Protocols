@@ -273,16 +273,33 @@ def page_users(ds):
     df = pd.DataFrame(users)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    st.subheader("Enable / disable")
-    ids = [u["id"] for u in users]
-    target = st.selectbox("User id", ids)
-    c1, c2 = st.columns(2)
-    if c1.button("Disable"):
-        ds.set_active(target, False)
-        st.rerun()
-    if c2.button("Enable"):
+    st.subheader("Manage account")
+    label_by_id = {u["id"]: f"{u['username']} (id {u['id']})" for u in users}
+    ids = list(label_by_id.keys())
+    target = st.selectbox("User", ids, format_func=lambda i: label_by_id[i])
+    c1, c2, c3 = st.columns(3)
+    if c1.button("Enable"):
         ds.set_active(target, True)
         st.rerun()
+    if c2.button("Disable"):
+        ds.set_active(target, False)
+        st.rerun()
+
+    # Deletion is permanent (removes the user, their credentials and all of
+    # their audit events), so require an explicit confirmation first.
+    with c3.popover("🗑️ Delete", use_container_width=True):
+        st.warning(
+            f"Permanently delete **{label_by_id[target]}** and all of their "
+            "events and credentials? This cannot be undone."
+        )
+        if st.checkbox("Yes, I'm sure", key=f"confirm_del_{target}"):
+            if st.button("Delete permanently", type="primary"):
+                try:
+                    ds.delete_user(target)
+                    st.success(f"Deleted {label_by_id[target]}")
+                    st.rerun()
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not delete user: {exc}")
 
 
 def _events_df(ds, **kwargs) -> pd.DataFrame:

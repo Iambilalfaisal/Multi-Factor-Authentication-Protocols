@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..crypto.passwords import hash_password
-from ..models import User
+from ..models import AuthEvent, User
 
 
 class UserError(Exception):
@@ -64,3 +64,20 @@ def set_active(session: Session, user_id: int, is_active: bool) -> User:
     user.is_active = is_active
     session.commit()
     return user
+
+
+def delete_user(session: Session, user_id: int) -> None:
+    """Permanently delete a user and all their data (admin action).
+
+    Removes the user's audit events explicitly (``AuthEvent.user_id`` has no
+    cascade), then deletes the user; enrolled credentials and backup codes are
+    removed automatically via the relationship cascade.
+    """
+    user = session.get(User, user_id)
+    if user is None:
+        raise UserError("user not found")
+    session.query(AuthEvent).filter(AuthEvent.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    session.delete(user)
+    session.commit()
