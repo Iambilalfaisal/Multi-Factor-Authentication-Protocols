@@ -55,6 +55,30 @@ def _ds():
     return get_data_source()
 
 
+@st.cache_resource
+def _ensure_seed_data():
+    """Auto-seed demo data on first boot when running EMBEDDED with an empty DB.
+
+    Streamlit Community Cloud has no terminal and an ephemeral filesystem, so
+    ``python -m scripts.seed`` can never be run there. To make the deployed demo
+    show real users, login history and anomalies, we seed in-process on the
+    first run if (a) we're in EMBEDDED mode and (b) the database has no users.
+    Cached so it runs at most once per container. Safe no-op otherwise.
+    """
+    embedded = os.environ.get("EMBEDDED", "0").strip().lower() in {"1", "true", "yes", "on"}
+    if not embedded:
+        return "skipped (not EMBEDDED)"
+    try:
+        ds = _ds()
+        if ds.list_users():
+            return "skipped (already has data)"
+        from scripts.seed import seed
+        seed()
+        return "seeded"
+    except Exception as exc:  # noqa: BLE001  - never let seeding crash the app
+        return f"error: {exc}"
+
+
 def _mode_badge() -> str:
     embedded = os.environ.get("EMBEDDED", "0").lower() in {"1", "true", "yes", "on"}
     return "EMBEDDED (in-process)" if embedded else f"HTTP -> {os.environ.get('API_BASE_URL', 'localhost:5000')}"
@@ -282,8 +306,13 @@ def page_evidence(ds):
 
 def main():
     ds = _ds()
+    seed_status = _ensure_seed_data()
     st.sidebar.title("MFA Admin")
     st.sidebar.caption(f"Backend: {_mode_badge()}")
+    if seed_status == "seeded":
+        st.sidebar.success("Demo data auto-seeded.")
+    elif isinstance(seed_status, str) and seed_status.startswith("error"):
+        st.sidebar.warning(f"Auto-seed skipped: {seed_status}")
     page = st.sidebar.radio(
         "Navigate", ["Users", "MFA Log", "Anomalies", "Analytics", "Test Evidence"]
     )
