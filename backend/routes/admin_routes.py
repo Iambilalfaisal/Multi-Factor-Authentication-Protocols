@@ -14,7 +14,13 @@ from flask import Blueprint, g, jsonify
 
 from ..models import AuthEvent
 from ..services import events as events_svc
-from ..services.users import UserError, create_user, list_users, set_active
+from ..services.users import (
+    UserError,
+    create_user,
+    delete_user,
+    list_users,
+    set_active,
+)
 from .helpers import error, json_body, with_session
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -53,6 +59,16 @@ def patch_user(user_id: int):
     except UserError as exc:
         return error(str(exc), 404)
     return jsonify({"user": user.to_dict()}), 200
+
+
+@admin_bp.delete("/users/<int:user_id>")
+@with_session
+def remove_user(user_id: int):
+    try:
+        delete_user(g.session, user_id)
+    except UserError as exc:
+        return error(str(exc), 404)
+    return jsonify({"deleted": user_id}), 200
 
 
 @admin_bp.get("/events")
