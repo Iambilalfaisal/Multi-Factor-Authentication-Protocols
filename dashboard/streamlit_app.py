@@ -245,11 +245,6 @@ def _ensure_seed_data():
         return f"error: {exc}"
 
 
-def _mode_badge() -> str:
-    embedded = os.environ.get("EMBEDDED", "0").lower() in {"1", "true", "yes", "on"}
-    return "🟢 Live (embedded engine)" if embedded else f"🟢 Live → {os.environ.get('API_BASE_URL', 'localhost:5000')}"
-
-
 def page_users(ds):
     st.header("Users")
     with st.expander("Create a new user"):
@@ -497,7 +492,6 @@ def main():
     ds = _ds()
     seed_status = _ensure_seed_data()
     st.sidebar.title("🔐 MFA Admin")
-    st.sidebar.caption(f"Backend: {_mode_badge()}")
     # Data initialisation is silent by design so the console reads like a live
     # system; only surface a problem if one occurs.
     if isinstance(seed_status, str) and seed_status.startswith("error"):
