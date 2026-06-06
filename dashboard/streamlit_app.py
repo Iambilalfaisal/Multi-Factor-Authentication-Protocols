@@ -57,24 +57,35 @@ def _ds():
 
 @st.cache_resource
 def _ensure_seed_data():
-    """Auto-seed demo data on first boot when running EMBEDDED with an empty DB.
+    """Auto-seed demo login history on first boot when there are no events.
 
     Streamlit Community Cloud has no terminal and an ephemeral filesystem, so
     ``python -m scripts.seed`` can never be run there. To make the deployed demo
-    show real users, login history and anomalies, we seed in-process on the
-    first run if (a) we're in EMBEDDED mode and (b) the database has no users.
-    Cached so it runs at most once per container. Safe no-op otherwise.
+    show login history and anomalies, we seed in-process on the first run when
+    (a) we're in EMBEDDED mode and (b) the database has no events yet.
+
+    Crucially this back-fills history for whatever users already exist (e.g.
+    accounts you created in the dashboard) AND adds the canonical alice/bob/carol
+    demo users if the DB is empty - so the log/anomaly/analytics pages have data
+    regardless of how the users got there. Cached so it runs at most once per
+    container. Safe no-op otherwise.
     """
     embedded = os.environ.get("EMBEDDED", "0").strip().lower() in {"1", "true", "yes", "on"}
     if not embedded:
         return "skipped (not EMBEDDED)"
     try:
         ds = _ds()
-        if ds.list_users():
-            return "skipped (already has data)"
-        from scripts.seed import seed
-        seed()
-        return "seeded"
+        from scripts.seed import seed, seed_existing_users
+        # If the DB has no users at all, add the canonical alice/bob/carol demo
+        # users (each with their own history).
+        if not ds.list_users():
+            seed()
+            return "seeded"
+        # Otherwise back-fill history for any existing user that lacks events
+        # (your real accounts). Idempotent: users that already have history are
+        # untouched, so a freshly-created user gets seeded on the next refresh.
+        n = seed_existing_users()
+        return f"seeded {n} user(s)" if n else "skipped (all users have history)"
     except Exception as exc:  # noqa: BLE001  - never let seeding crash the app
         return f"error: {exc}"
 
@@ -309,10 +320,10 @@ def main():
     seed_status = _ensure_seed_data()
     st.sidebar.title("MFA Admin")
     st.sidebar.caption(f"Backend: {_mode_badge()}")
-    if seed_status == "seeded":
-        st.sidebar.success("Demo data auto-seeded.")
+    if isinstance(seed_status, str) and seed_status.startswith(("seeded", "seeded ")):
+        st.sidebar.success(f"Demo data auto-seeded ({seed_status}).")
     elif isinstance(seed_status, str) and seed_status.startswith("error"):
-        st.sidebar.warning(f"Auto-seed skipped: {seed_status}")
+        st.sidebar.warning(f"Auto-seed problem: {seed_status}")
     page = st.sidebar.radio(
         "Navigate", ["Users", "MFA Log", "Anomalies", "Analytics", "Test Evidence"]
     )
