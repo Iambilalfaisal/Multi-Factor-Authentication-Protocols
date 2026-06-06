@@ -47,7 +47,162 @@ for _key in (
 
 from data_source import get_data_source  # noqa: E402  (after env setup)
 
-st.set_page_config(page_title="MFA Admin Dashboard", page_icon="lock", layout="wide")
+st.set_page_config(page_title="MFA Admin Dashboard", page_icon="🔐", layout="wide")
+
+
+# ---------------------------------------------------------------------------
+# Theme + animations. Pure CSS injected into Streamlit (no extra dependencies,
+# so the app still deploys cleanly to Streamlit Community Cloud).
+# ---------------------------------------------------------------------------
+_THEME_CSS = """
+<style>
+/* ---- "SOC console" palette ---------------------------------------------- */
+:root {
+  --mfa-navy:  #0f172a;   /* slate-900 base   */
+  --mfa-teal:  #0e7490;   /* cyan-800 deep    */
+  --mfa-cyan:  #22d3ee;   /* cyan-400 accent  */
+  --mfa-cyan2: #0891b2;   /* cyan-600         */
+  --mfa-blue:  #2563eb;   /* blue-600         */
+  --mfa-threat:#ef4444;   /* red - threats ONLY */
+}
+.stApp {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(14,116,144,.20), transparent 60%),
+    radial-gradient(1000px 500px at 110% 0%, rgba(34,211,238,.12), transparent 55%),
+    radial-gradient(900px 520px at 50% 120%, rgba(37,99,235,.10), transparent 55%);
+}
+
+/* ---- MFA hero banner (calm: slow gradient + single scan line) ----------- */
+.mfa-hero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 1.1rem;
+  padding: 1.15rem 1.5rem; margin: 0 0 1.25rem 0;
+  border-radius: 18px;
+  background: linear-gradient(120deg, var(--mfa-navy), var(--mfa-teal), var(--mfa-cyan2), #155e75);
+  background-size: 280% 280%;
+  animation: mfaGradient 18s ease infinite;
+  box-shadow: 0 10px 30px rgba(8,145,178,.30);
+  border: 1px solid rgba(34,211,238,.25);
+}
+@keyframes mfaGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+/* sweeping "scan line" - the one kept motion (reads as a security scan) */
+.mfa-hero::after {
+  content: ""; position: absolute; top: 0; left: -35%;
+  width: 35%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,.22), transparent);
+  animation: mfaScan 6s linear infinite;
+}
+@keyframes mfaScan { 0% { left: -35%; } 100% { left: 120%; } }
+
+/* shield: slow, subtle pulse */
+.mfa-shield {
+  font-size: 2.6rem; line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(34,211,238,.6));
+  animation: mfaPulse 3.5s ease-in-out infinite;
+}
+@keyframes mfaPulse {
+  0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 6px rgba(34,211,238,.45)); }
+  50%      { transform: scale(1.08); filter: drop-shadow(0 0 14px rgba(34,211,238,.85)); }
+}
+/* lock: static, steady glow (no motion) */
+.mfa-lock {
+  margin-left: auto; font-size: 2.1rem; line-height: 1;
+  filter: drop-shadow(0 0 8px rgba(34,211,238,.5));
+}
+.mfa-hero-title {
+  color: #f1f5f9; font-size: 1.7rem; font-weight: 800; letter-spacing: .3px;
+  text-shadow: 0 2px 8px rgba(0,0,0,.35); margin: 0;
+}
+.mfa-hero-sub { color: rgba(224,242,254,.92); font-size: .92rem; margin-top: 3px; }
+
+/* ---- Gradient section headers (cyan -> teal -> blue) -------------------- */
+h1, h2 {
+  background: linear-gradient(90deg, var(--mfa-cyan), var(--mfa-cyan2), var(--mfa-blue));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800 !important;
+}
+
+/* ---- Metric cards with hover lift --------------------------------------- */
+[data-testid="stMetric"] {
+  background: linear-gradient(160deg, rgba(14,116,144,.18), rgba(15,23,42,.30));
+  border: 1px solid rgba(34,211,238,.25);
+  border-left: 5px solid var(--mfa-cyan);
+  border-radius: 14px; padding: 14px 16px;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+[data-testid="stMetric"]:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(34,211,238,.25);
+  border-left-color: var(--mfa-cyan2);
+}
+[data-testid="stMetricValue"] { color: #e0f2fe; font-weight: 800; }
+
+/* ---- Buttons ------------------------------------------------------------ */
+.stButton > button {
+  border: 0; border-radius: 12px; font-weight: 700; color: #fff;
+  background: linear-gradient(90deg, var(--mfa-teal), var(--mfa-cyan2));
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+.stButton > button:hover {
+  transform: translateY(-2px); filter: brightness(1.10);
+  box-shadow: 0 8px 20px rgba(8,145,178,.40);
+}
+
+/* ---- Sidebar accent ----------------------------------------------------- */
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, rgba(14,116,144,.16), rgba(15,23,42,.30));
+  border-right: 1px solid rgba(34,211,238,.20);
+}
+
+/* ---- Dataframe rounding ------------------------------------------------- */
+[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+</style>
+"""
+
+
+def _inject_theme() -> None:
+    st.markdown(_THEME_CSS, unsafe_allow_html=True)
+
+
+def _render_hero(subtitle: str) -> None:
+    st.markdown(
+        f"""
+        <div class="mfa-hero">
+          <div class="mfa-shield">🛡️</div>
+          <div>
+            <div class="mfa-hero-title">MFA Admin Dashboard</div>
+            <div class="mfa-hero-sub">{subtitle}</div>
+          </div>
+          <div class="mfa-lock">🔐</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# "SOC console" sequence: cyan/teal/blue family for neutral categories. Red is
+# reserved exclusively for threats (see _STATUS_COLORS) so flagged events pop.
+_MFA_COLORS = ["#22d3ee", "#0891b2", "#0e7490", "#2563eb", "#38bdf8", "#5eead4"]
+_STATUS_COLORS = {"success": "#22c55e", "failure": "#f59e0b", "flagged": "#ef4444"}
+
+
+def _style_fig(fig):
+    """Apply the dashboard's colourful, transparent-background look to a chart."""
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e0f2fe"),
+        title_font=dict(size=18, color="#a5f3fc"),
+        margin=dict(l=10, r=10, t=50, b=10),
+        legend=dict(bgcolor="rgba(0,0,0,0)"),
+    )
+    return fig
 
 
 @st.cache_resource
@@ -92,7 +247,7 @@ def _ensure_seed_data():
 
 def _mode_badge() -> str:
     embedded = os.environ.get("EMBEDDED", "0").lower() in {"1", "true", "yes", "on"}
-    return "EMBEDDED (in-process)" if embedded else f"HTTP -> {os.environ.get('API_BASE_URL', 'localhost:5000')}"
+    return "🟢 Live (embedded engine)" if embedded else f"🟢 Live → {os.environ.get('API_BASE_URL', 'localhost:5000')}"
 
 
 def page_users(ds):
@@ -240,28 +395,34 @@ def page_analytics(ds):
     by_day = a.get("by_day", {})
     if by_day:
         day_df = pd.DataFrame({"date": list(by_day.keys()), "attempts": list(by_day.values())})
-        st.plotly_chart(
-            px.line(day_df, x="date", y="attempts", title="MFA attempts over time"),
-            use_container_width=True,
+        line_fig = px.line(
+            day_df, x="date", y="attempts", title="MFA attempts over time",
+            markers=True, color_discrete_sequence=["#22d3ee"],
         )
+        line_fig.update_traces(line=dict(width=3), fill="tozeroy", fillcolor="rgba(34,211,238,.15)")
+        st.plotly_chart(_style_fig(line_fig), use_container_width=True)
 
     cols = st.columns(2)
     by_factor = a.get("by_factor", {})
     if by_factor:
         f_df = pd.DataFrame({"factor": list(by_factor.keys()), "count": list(by_factor.values())})
-        cols[0].plotly_chart(
-            px.bar(f_df, x="factor", y="count", title="Attempts by factor"),
-            use_container_width=True,
+        bar_fig = px.bar(
+            f_df, x="factor", y="count", title="Attempts by factor",
+            color="factor", color_discrete_sequence=_MFA_COLORS,
         )
+        cols[0].plotly_chart(_style_fig(bar_fig), use_container_width=True)
 
     ratio_df = pd.DataFrame({
         "outcome": ["success", "failure"],
         "count": [a.get("successes", 0), a.get("failures", 0)],
     })
-    cols[1].plotly_chart(
-        px.pie(ratio_df, names="outcome", values="count", title="Success / fail ratio"),
-        use_container_width=True,
+    pie_fig = px.pie(
+        ratio_df, names="outcome", values="count", title="Success / fail ratio",
+        hole=0.45, color="outcome",
+        color_discrete_map={"success": "#22c55e", "failure": "#f59e0b"},
     )
+    pie_fig.update_traces(textinfo="percent+label")
+    cols[1].plotly_chart(_style_fig(pie_fig), use_container_width=True)
 
     # Geographic login map - directly visualises the geo-anomaly feature.
     st.subheader("Login locations")
@@ -287,8 +448,15 @@ def page_analytics(ds):
                 hover_data=["user_id", "factor"],
                 title="Login origins (flagged events highlighted)",
                 projection="natural earth",
+                color_discrete_map=_STATUS_COLORS,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            fig.update_traces(marker=dict(size=11, line=dict(width=1, color="rgba(255,255,255,.6)")))
+            fig.update_geos(
+                bgcolor="rgba(0,0,0,0)", landcolor="rgba(99,102,241,.12)",
+                oceancolor="rgba(2,6,23,.6)", showocean=True,
+                lakecolor="rgba(2,6,23,.6)", coastlinecolor="rgba(148,163,184,.4)",
+            )
+            st.plotly_chart(_style_fig(fig), use_container_width=True)
         else:
             st.info("No geo-tagged events to map yet.")
     else:
@@ -315,26 +483,35 @@ def page_evidence(ds):
         st.code(fh.read(), language="text")
 
 
+_PAGE_SUBTITLES = {
+    "Users": "👥 Manage accounts & enrolled factors",
+    "MFA Log": "📜 Live authentication audit trail",
+    "Anomalies": "🚨 AI-flagged suspicious logins",
+    "Analytics": "📊 Metrics, trends & geo intelligence",
+    "Test Evidence": "🧪 Captured security test results",
+}
+
+
 def main():
+    _inject_theme()
     ds = _ds()
     seed_status = _ensure_seed_data()
-    st.sidebar.title("MFA Admin")
+    st.sidebar.title("🔐 MFA Admin")
     st.sidebar.caption(f"Backend: {_mode_badge()}")
-    if isinstance(seed_status, str) and seed_status.startswith(("seeded", "seeded ")):
-        st.sidebar.success(f"Demo data auto-seeded ({seed_status}).")
-    elif isinstance(seed_status, str) and seed_status.startswith("error"):
-        st.sidebar.warning(f"Auto-seed problem: {seed_status}")
+    # Data initialisation is silent by design so the console reads like a live
+    # system; only surface a problem if one occurs.
+    if isinstance(seed_status, str) and seed_status.startswith("error"):
+        st.sidebar.warning(f"Data init problem: {seed_status}")
     page = st.sidebar.radio(
         "Navigate", ["Users", "MFA Log", "Anomalies", "Analytics", "Test Evidence"]
     )
-    if st.sidebar.button("Refresh data"):
+    if st.sidebar.button("🔄 Refresh data"):
         st.cache_resource.clear()
         st.rerun()
     st.sidebar.divider()
-    st.sidebar.caption(
-        "This dashboard has no login by design (capstone demo). "
-        "See SECURITY_NOTES.md."
-    )
+    st.sidebar.caption("Read-only security admin console. See SECURITY_NOTES.md.")
+
+    _render_hero(_PAGE_SUBTITLES.get(page, "Multi-Factor Authentication control center"))
 
     if page == "Users":
         page_users(ds)
