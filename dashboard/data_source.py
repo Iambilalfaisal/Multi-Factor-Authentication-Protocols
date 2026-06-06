@@ -27,6 +27,7 @@ class DataSource(Protocol):
     def list_users(self) -> list[dict]: ...
     def create_user(self, username: str, email: str, password: str) -> dict: ...
     def set_active(self, user_id: int, is_active: bool) -> dict: ...
+    def delete_user(self, user_id: int) -> None: ...
     def list_events(self, user_id: int | None, flagged_only: bool, limit: int) -> list[dict]: ...
     def analytics(self) -> dict: ...
 
@@ -52,6 +53,11 @@ class HttpDataSource:
         resp.raise_for_status()
         return resp.json()
 
+    def _delete(self, path: str):
+        resp = requests.delete(f"{self.base_url}{path}", timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+
     def list_users(self) -> list[dict]:
         return self._get("/api/admin/users")["users"]
 
@@ -62,6 +68,9 @@ class HttpDataSource:
 
     def set_active(self, user_id: int, is_active: bool) -> dict:
         return self._patch(f"/api/admin/users/{user_id}", {"is_active": is_active})["user"]
+
+    def delete_user(self, user_id: int) -> None:
+        self._delete(f"/api/admin/users/{user_id}")
 
     def list_events(self, user_id=None, flagged_only=False, limit=500) -> list[dict]:
         params = {"flagged_only": str(flagged_only).lower(), "limit": limit}
@@ -110,6 +119,15 @@ class EmbeddedDataSource:
         s = self._session()
         try:
             return set_active(s, user_id, is_active).to_dict()
+        finally:
+            self._SessionLocal.remove()
+
+    def delete_user(self, user_id: int) -> None:
+        from backend.services.users import delete_user
+
+        s = self._session()
+        try:
+            delete_user(s, user_id)
         finally:
             self._SessionLocal.remove()
 
